@@ -86,7 +86,7 @@ Expected output would be something like:
 The proxy will try to synchronize with the Unleash API at startup, until it has successfully done that the proxy will return `HTTP 503 - Not Read?` for all request. You can use the health endpoint to validate that the proxy is ready to recieve requests:
 
 ```bash
-curl curl http://localhost:3000/proxy/health -I
+curl http://localhost:3000/proxy/health -I
 ```
 
 ```bash
@@ -121,7 +121,7 @@ The Unleash Proxy takes the heavy lifting of evaluating toggles and only returns
 
 However in some settings you would like a bit more logic around it to make it as fast as possible, and keep up to date with changes.
 
-- [JavaScript Proxy SDK](./proxy-javascript)
+- [JavaScript Proxy SDK](/sdks/proxy-javascript)
 - [Android Proxy SDK](/sdks/android_proxy_sdk)
 - [iOS Proxy SDK](/sdks/proxy-ios)
 - React SDK (coming soon)
