@@ -5,7 +5,7 @@ import { IUnleashConfig } from '../../../types/option';
 import ProjectHealthService from '../../../services/project-health-service';
 import { Logger } from '../../../logger';
 import { IArchivedQuery, IProjectParam } from '../../../types/model';
-import { handleErrors } from '../util';
+import { handleErrors } from '../../util';
 
 export default class ProjectHealthReport extends Controller {
     private projectHealthService: ProjectHealthService;
@@ -48,9 +48,10 @@ export default class ProjectHealthReport extends Controller {
     ): Promise<void> {
         const { projectId } = req.params;
         try {
-            const overview = await this.projectHealthService.getProjectHealthReport(
-                projectId,
-            );
+            const overview =
+                await this.projectHealthService.getProjectHealthReport(
+                    projectId,
+                );
             res.json({
                 version: 2,
                 ...overview,

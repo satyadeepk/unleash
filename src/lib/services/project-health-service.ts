@@ -1,10 +1,10 @@
 import { IUnleashStores } from '../types/stores';
 import { IUnleashConfig } from '../types/option';
-import ProjectStore, { IProject } from '../db/project-store';
 import { Logger } from '../logger';
 import {
     FeatureToggle,
     IFeatureOverview,
+    IProject,
     IProjectHealthReport,
     IProjectOverview,
 } from '../types/model';
@@ -12,18 +12,19 @@ import {
     MILLISECONDS_IN_DAY,
     MILLISECONDS_IN_ONE_HOUR,
 } from '../util/constants';
-import FeatureTypeStore from '../db/feature-type-store';
+import { IFeatureToggleStore } from '../types/stores/feature-toggle-store';
+import { IFeatureTypeStore } from '../types/stores/feature-type-store';
+import { IProjectStore } from '../types/stores/project-store';
 import Timer = NodeJS.Timer;
-import FeatureToggleStore from '../db/feature-toggle-store';
 
 export default class ProjectHealthService {
     private logger: Logger;
 
-    private projectStore: ProjectStore;
+    private projectStore: IProjectStore;
 
-    private featureTypeStore: FeatureTypeStore;
+    private featureTypeStore: IFeatureTypeStore;
 
-    private featureToggleStore: FeatureToggleStore;
+    private featureToggleStore: IFeatureToggleStore;
 
     private featureTypes: Map<string, number>;
 
@@ -35,8 +36,8 @@ export default class ProjectHealthService {
             featureTypeStore,
             featureToggleStore,
         }: Pick<
-        IUnleashStores,
-        'projectStore' | 'featureTypeStore' | 'featureToggleStore'
+            IUnleashStores,
+            'projectStore' | 'featureTypeStore' | 'featureToggleStore'
         >,
         { getLogger }: Pick<IUnleashConfig, 'getLogger'>,
     ) {
@@ -91,14 +92,14 @@ export default class ProjectHealthService {
         const today = new Date().valueOf();
         if (this.featureTypes.size === 0) {
             const types = await this.featureTypeStore.getAll();
-            types.forEach(type => {
+            types.forEach((type) => {
                 this.featureTypes.set(
                     type.name.toLowerCase(),
                     type.lifetimeDays,
                 );
             });
         }
-        return features.filter(feature => {
+        return features.filter((feature) => {
             const diff = today - feature.createdAt.valueOf();
             const featureTypeExpectedLifetime = this.featureTypes.get(
                 feature.type,
@@ -111,11 +112,11 @@ export default class ProjectHealthService {
     }
 
     private activeCount(features: IFeatureOverview[]): number {
-        return features.filter(f => !f.stale).length;
+        return features.filter((f) => !f.stale).length;
     }
 
     private staleCount(features: IFeatureOverview[]): number {
-        return features.filter(f => f.stale).length;
+        return features.filter((f) => f.stale).length;
     }
 
     async calculateHealthRating(project: IProject): Promise<number> {
@@ -123,7 +124,7 @@ export default class ProjectHealthService {
             project: project.id,
         });
 
-        const activeToggles = toggles.filter(feature => !feature.stale);
+        const activeToggles = toggles.filter((feature) => !feature.stale);
         const staleToggles = toggles.length - activeToggles.length;
         const potentiallyStaleToggles = await this.potentiallyStaleCount(
             activeToggles,
@@ -154,7 +155,7 @@ export default class ProjectHealthService {
         const projects = await this.projectStore.getAll();
 
         await Promise.all(
-            projects.map(async project => {
+            projects.map(async (project) => {
                 const newHealth = await this.calculateHealthRating(project);
                 await this.projectStore.updateHealth({
                     id: project.id,

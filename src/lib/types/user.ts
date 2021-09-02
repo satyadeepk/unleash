@@ -18,7 +18,12 @@ export interface IUser {
     username?: string;
     email?: string;
     inviteLink?: string;
+    seenAt?: Date;
     createdAt: Date;
+    permissions: string[];
+    loginAttempts: number;
+    isAPI: boolean;
+    imageUrl: string;
 }
 
 export default class User implements IUser {

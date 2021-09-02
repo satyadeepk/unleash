@@ -7,12 +7,9 @@ import { Logger } from '../../../logger';
 import { CREATE_FEATURE, UPDATE_FEATURE } from '../../../types/permissions';
 import {
     FeatureToggleDTO,
-    IArchivedQuery,
     IConstraint,
-    IProjectParam,
     IStrategyConfig,
 } from '../../../types/model';
-import { handleErrors } from '../util';
 import extractUsername from '../../../extract-user';
 import ProjectHealthService from '../../../services/project-health-service';
 
@@ -43,7 +40,7 @@ interface StrategyUpdateBody {
 const PATH_PREFIX = '/:projectId/features/:featureName';
 
 type ProjectFeaturesServices = Pick<
-IUnleashServices,
+    IUnleashServices,
     'featureToggleServiceV2' | 'projectHealthService'
 >;
 
@@ -113,14 +110,10 @@ export default class ProjectFeaturesController extends Controller {
         res: Response,
     ): Promise<void> {
         const { projectId } = req.params;
-        try {
-            const features = await this.featureService.getFeatureToggles({
-                project: [projectId],
-            });
-            res.json({ version: 1, features });
-        } catch (e) {
-            handleErrors(res, this.logger, e);
-        }
+        const features = await this.featureService.getFeatureToggles({
+            project: [projectId],
+        });
+        res.json({ version: 1, features });
     }
 
     async createFeatureToggle(
@@ -128,17 +121,13 @@ export default class ProjectFeaturesController extends Controller {
         res: Response,
     ): Promise<void> {
         const { projectId } = req.params;
-        try {
-            const userName = extractUsername(req);
-            const created = await this.featureService.createFeatureToggle(
-                projectId,
-                req.body,
-                userName,
-            );
-            res.status(201).json(created);
-        } catch (e) {
-            handleErrors(res, this.logger, e);
-        }
+        const userName = extractUsername(req);
+        const created = await this.featureService.createFeatureToggle(
+            projectId,
+            req.body,
+            userName,
+        );
+        res.status(201).json(created);
     }
 
     async getEnvironment(
@@ -146,16 +135,12 @@ export default class ProjectFeaturesController extends Controller {
         res: Response,
     ): Promise<void> {
         const { environment, featureName, projectId } = req.params;
-        try {
-            const environmentInfo = await this.featureService.getEnvironmentInfo(
-                projectId,
-                environment,
-                featureName,
-            );
-            res.status(200).json(environmentInfo);
-        } catch (e) {
-            handleErrors(res, this.logger, e);
-        }
+        const environmentInfo = await this.featureService.getEnvironmentInfo(
+            projectId,
+            environment,
+            featureName,
+        );
+        res.status(200).json(environmentInfo);
     }
 
     async getFeature(
@@ -163,12 +148,8 @@ export default class ProjectFeaturesController extends Controller {
         res: Response,
     ): Promise<void> {
         const { featureName } = req.params;
-        try {
-            const feature = await this.featureService.getFeature(featureName);
-            res.status(200).json(feature);
-        } catch (e) {
-            handleErrors(res, this.logger, e);
-        }
+        const feature = await this.featureService.getFeature(featureName);
+        res.status(200).json(feature);
     }
 
     async toggleEnvironmentOn(
@@ -176,17 +157,13 @@ export default class ProjectFeaturesController extends Controller {
         res: Response,
     ): Promise<void> {
         const { featureName, environment } = req.params;
-        try {
-            await this.featureService.updateEnabled(
-                featureName,
-                environment,
-                true,
-                extractUsername(req),
-            );
-            res.status(200).end();
-        } catch (e) {
-            handleErrors(res, this.logger, e);
-        }
+        await this.featureService.updateEnabled(
+            featureName,
+            environment,
+            true,
+            extractUsername(req),
+        );
+        res.status(200).end();
     }
 
     async toggleEnvironmentOff(
@@ -194,17 +171,13 @@ export default class ProjectFeaturesController extends Controller {
         res: Response,
     ): Promise<void> {
         const { featureName, environment } = req.params;
-        try {
-            await this.featureService.updateEnabled(
-                featureName,
-                environment,
-                false,
-                extractUsername(req),
-            );
-            res.status(200).end();
-        } catch (e) {
-            handleErrors(res, this.logger, e);
-        }
+        await this.featureService.updateEnabled(
+            featureName,
+            environment,
+            false,
+            extractUsername(req),
+        );
+        res.status(200).end();
     }
 
     async createFeatureStrategy(
@@ -212,17 +185,13 @@ export default class ProjectFeaturesController extends Controller {
         res: Response,
     ): Promise<void> {
         const { projectId, featureName, environment } = req.params;
-        try {
-            const featureStrategy = await this.featureService.createStrategy(
-                req.body,
-                projectId,
-                featureName,
-                environment,
-            );
-            res.status(200).json(featureStrategy);
-        } catch (e) {
-            handleErrors(res, this.logger, e);
-        }
+        const featureStrategy = await this.featureService.createStrategy(
+            req.body,
+            projectId,
+            featureName,
+            environment,
+        );
+        res.status(200).json(featureStrategy);
     }
 
     async getFeatureStrategies(
@@ -230,16 +199,13 @@ export default class ProjectFeaturesController extends Controller {
         res: Response,
     ): Promise<void> {
         const { projectId, featureName, environment } = req.params;
-        try {
-            const featureStrategies = await this.featureService.getStrategiesForEnvironment(
+        const featureStrategies =
+            await this.featureService.getStrategiesForEnvironment(
                 projectId,
                 featureName,
                 environment,
             );
-            res.status(200).json(featureStrategies);
-        } catch (e) {
-            handleErrors(res, this.logger, e);
-        }
+        res.status(200).json(featureStrategies);
     }
 
     async updateStrategy(
@@ -247,15 +213,11 @@ export default class ProjectFeaturesController extends Controller {
         res: Response,
     ): Promise<void> {
         const { strategyId } = req.params;
-        try {
-            const updatedStrategy = await this.featureService.updateStrategy(
-                strategyId,
-                req.body,
-            );
-            res.status(200).json(updatedStrategy);
-        } catch (e) {
-            handleErrors(res, this.logger, e);
-        }
+        const updatedStrategy = await this.featureService.updateStrategy(
+            strategyId,
+            req.body,
+        );
+        res.status(200).json(updatedStrategy);
     }
 
     async getStrategy(
@@ -265,11 +227,7 @@ export default class ProjectFeaturesController extends Controller {
         this.logger.info('Getting strategy');
         const { strategyId } = req.params;
         this.logger.info(strategyId);
-        try {
-            const strategy = await this.featureService.getStrategy(strategyId);
-            res.status(200).json(strategy);
-        } catch (e) {
-            handleErrors(res, this.logger, e);
-        }
+        const strategy = await this.featureService.getStrategy(strategyId);
+        res.status(200).json(strategy);
     }
 }

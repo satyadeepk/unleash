@@ -4,12 +4,21 @@ import { ADMIN } from '../../types/permissions';
 import UserService from '../../services/user-service';
 import { AccessService } from '../../services/access-service';
 import { Logger } from '../../logger';
-import { handleErrors } from './util';
+import { handleErrors } from '../util';
 import { IUnleashConfig } from '../../types/option';
 import { EmailService } from '../../services/email-service';
 import ResetTokenService from '../../services/reset-token-service';
 import { IUnleashServices } from '../../types/services';
 import SessionService from '../../services/session-service';
+import { IAuthRequest } from '../unleash-types';
+
+interface ICreateUserBody {
+    username: string;
+    email: string;
+    name: string;
+    rootRole: number;
+    sendEmail: boolean;
+}
 
 export default class UserAdminController extends Controller {
     private userService: UserService;
@@ -65,10 +74,8 @@ export default class UserAdminController extends Controller {
         const { user } = req;
         try {
             const receiver = req.body.id;
-            const resetPasswordUrl = await this.userService.createResetPasswordEmail(
-                receiver,
-                user,
-            );
+            const resetPasswordUrl =
+                await this.userService.createResetPasswordEmail(receiver, user);
             res.json({ resetPasswordUrl });
         } catch (e) {
             handleErrors(res, this.logger, e);
@@ -76,13 +83,14 @@ export default class UserAdminController extends Controller {
     }
 
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-    async getUsers(req, res): Promise<void> {
+    async getUsers(req: Request, res: Response): Promise<void> {
         try {
             const users = await this.userService.getAll();
             const rootRoles = await this.accessService.getRootRoles();
-            const inviteLinks = await this.resetTokenService.getActiveInvitations();
+            const inviteLinks =
+                await this.resetTokenService.getActiveInvitations();
 
-            const usersWithInviteLinks = users.map(user => {
+            const usersWithInviteLinks = users.map((user) => {
                 const inviteLink = inviteLinks[user.id] || '';
                 return { ...user, inviteLink };
             });
@@ -104,8 +112,8 @@ export default class UserAdminController extends Controller {
     }
 
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-    async search(req, res): Promise<void> {
-        const { q } = req.query;
+    async search(req: Request, res: Response): Promise<void> {
+        const { q } = req.query as any;
         try {
             const users =
                 q && q.length > 1 ? await this.userService.search(q) : [];
@@ -117,8 +125,11 @@ export default class UserAdminController extends Controller {
     }
 
     // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-    async createUser(req, res): Promise<void> {
-        const { username, email, name, rootRole } = req.body;
+    async createUser(
+        req: IAuthRequest<any, any, ICreateUserBody, any>,
+        res: Response,
+    ): Promise<void> {
+        const { username, email, name, rootRole, sendEmail } = req.body;
         const { user } = req;
 
         try {
@@ -131,7 +142,6 @@ export default class UserAdminController extends Controller {
                 },
                 user,
             );
-
             const inviteLink = await this.resetTokenService.createNewUserUrl(
                 createdUser.id,
                 user.email,
@@ -139,7 +149,9 @@ export default class UserAdminController extends Controller {
 
             let emailSent = false;
             const emailConfigured = this.emailService.configured();
-            if (emailConfigured) {
+            const reallySendEmail =
+                emailConfigured && (sendEmail !== undefined ? sendEmail : true);
+            if (reallySendEmail) {
                 try {
                     await this.emailService.sendGettingStartedMail(
                         createdUser.name,
@@ -171,8 +183,7 @@ export default class UserAdminController extends Controller {
         }
     }
 
-    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-    async updateUser(req, res): Promise<void> {
+    async updateUser(req: IAuthRequest, res: Response): Promise<void> {
         const { user, params, body } = req;
 
         const { id } = params;
@@ -195,8 +206,7 @@ export default class UserAdminController extends Controller {
         }
     }
 
-    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-    async deleteUser(req, res): Promise<void> {
+    async deleteUser(req: IAuthRequest, res: Response): Promise<void> {
         const { user, params } = req;
         const { id } = params;
 
@@ -208,8 +218,7 @@ export default class UserAdminController extends Controller {
         }
     }
 
-    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-    async validatePassword(req, res): Promise<void> {
+    async validatePassword(req: IAuthRequest, res: Response): Promise<void> {
         const { password } = req.body;
 
         try {
@@ -220,8 +229,7 @@ export default class UserAdminController extends Controller {
         }
     }
 
-    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-    async changePassword(req, res): Promise<void> {
+    async changePassword(req: IAuthRequest, res: Response): Promise<void> {
         const { id } = req.params;
         const { password } = req.body;
 

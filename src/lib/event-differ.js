@@ -102,7 +102,7 @@ function baseTypeFor(event) {
     return event.type;
 }
 
-const uniqueFieldForType = baseType => {
+const uniqueFieldForType = (baseType) => {
     if (baseType === 'user') {
         return 'id';
     }
@@ -112,7 +112,7 @@ const uniqueFieldForType = baseType => {
 function groupByBaseTypeAndName(events) {
     const groups = {};
 
-    events.forEach(event => {
+    events.forEach((event) => {
         const baseType = baseTypeFor(event);
         const uniqueField = uniqueFieldForType(baseType);
 
@@ -129,10 +129,10 @@ function groupByBaseTypeAndName(events) {
 function eachConsecutiveEvent(events, callback) {
     const groups = groupByBaseTypeAndName(events);
 
-    Object.keys(groups).forEach(baseType => {
+    Object.keys(groups).forEach((baseType) => {
         const group = groups[baseType];
 
-        Object.keys(group).forEach(name => {
+        Object.keys(group).forEach((name) => {
             const currentEvents = group[name];
             let left;
             let right;
@@ -148,11 +148,17 @@ function eachConsecutiveEvent(events, callback) {
     });
 }
 
-function addDiffs(events) {
+const ignoredProps = ['createdAt', 'lastSeenAt', 'environments', 'id'];
+
+const filterProps = (path, key) => {
+    return ignoredProps.includes(key);
+};
+
+function addDiffs(events = []) {
     // TODO: no-param-reassign
     eachConsecutiveEvent(events, (left, right) => {
         if (right) {
-            left.diffs = diff(right.data, left.data);
+            left.diffs = diff(right.data, left.data, filterProps);
             left.diffs = left.diffs || [];
         } else {
             left.diffs = null;

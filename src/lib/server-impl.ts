@@ -1,8 +1,6 @@
 import EventEmitter from 'events';
 import stoppable, { StoppableServer } from 'stoppable';
 import { promisify } from 'util';
-import { IUnleash } from './types/core';
-import { IUnleashConfig, IUnleashOptions } from './types/option';
 import version from './util/version';
 import migrator from '../migrator';
 import getApp from './app';
@@ -10,13 +8,22 @@ import { createMetricsMonitor } from './metrics';
 import { createStores } from './db';
 import { createServices } from './services';
 import { createConfig } from './create-config';
-import User from './types/user';
-
-import * as permissions from './types/permissions';
-import AuthenticationRequired from './types/authentication-required';
-import * as eventType from './types/events';
 import { addEventHook } from './event-hook';
 import registerGracefulShutdown from './util/graceful-shutdown';
+import { createDb } from './db/db-pool';
+import sessionDb from './middleware/session-db';
+// Types
+import { IUnleash } from './types/core';
+import { IUnleashConfig, IUnleashOptions } from './types/option';
+import { IUnleashServices } from './types/services';
+import User, { IUser } from './types/user';
+import { Logger, LogLevel } from './logger';
+import AuthenticationRequired from './types/authentication-required';
+import Controller from './routes/controller';
+import { IAuthRequest } from './routes/unleash-types';
+import * as permissions from './types/permissions';
+import * as eventType from './types/events';
+import { RoleName } from './types/model';
 
 async function createApp(
     config: IUnleashConfig,
@@ -26,9 +33,11 @@ async function createApp(
     const logger = config.getLogger('server-impl.js');
     const serverVersion = version;
     const eventBus = new EventEmitter();
-    const stores = createStores(config, eventBus);
+    const db = createDb(config);
+    const stores = createStores(config, eventBus, db);
     const services = createServices(stores, config);
     const metricsMonitor = createMetricsMonitor();
+    const unleashSession = sessionDb(config, db);
 
     const stopUnleash = async (server?: StoppableServer) => {
         logger.info('Shutting down Unleash...');
@@ -39,7 +48,7 @@ async function createApp(
         metricsMonitor.stopMonitoring();
         stores.clientInstanceStore.destroy();
         stores.clientMetricsStore.destroy();
-        await stores.db.destroy();
+        await db.destroy();
     };
 
     if (!config.server.secret) {
@@ -47,12 +56,12 @@ async function createApp(
         // eslint-disable-next-line no-param-reassign
         config.server.secret = secret;
     }
-    const app = getApp(config, stores, services, eventBus);
+    const app = getApp(config, stores, services, eventBus, unleashSession);
 
     if (typeof config.eventHook === 'function') {
         addEventHook(config.eventHook, stores.eventStore);
     }
-    metricsMonitor.startMonitoring(config, stores, serverVersion, eventBus);
+    metricsMonitor.startMonitoring(config, stores, serverVersion, eventBus, db);
     const unleash: Omit<IUnleash, 'stop'> = {
         stores,
         eventBus,
@@ -136,13 +145,31 @@ async function create(opts: IUnleashOptions): Promise<IUnleash> {
     }
     return createApp(config, false);
 }
-const serverImpl = {
+
+// Module exports
+export {
     start,
     create,
-    User,
-    AuthenticationRequired,
     permissions,
     eventType,
+    Controller,
+    AuthenticationRequired,
+    User,
+    LogLevel,
+    RoleName,
 };
-export default serverImpl;
-module.exports = serverImpl;
+
+export default {
+    start,
+    create,
+};
+
+export type {
+    Logger,
+    IUnleash,
+    IUnleashOptions,
+    IUnleashConfig,
+    IUser,
+    IUnleashServices,
+    IAuthRequest,
+};

@@ -1,5 +1,3 @@
-'use strict';
-
 import { IUnleashConfig } from '../../types/option';
 import { IUnleashServices } from '../../types/services';
 import StrategyService from '../../services/strategy-service';
@@ -8,7 +6,7 @@ import { Logger } from '../../logger';
 const Controller = require('../controller');
 
 const extractUser = require('../../extract-user');
-const { handleErrors } = require('./util');
+const { handleErrors } = require('../util');
 const {
     DELETE_STRATEGY,
     CREATE_STRATEGY,

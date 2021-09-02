@@ -1,5 +1,3 @@
-'use strict';
-
 import * as mime from 'mime';
 import YAML from 'js-yaml';
 import moment from 'moment';
@@ -8,7 +6,6 @@ import { Request, Response } from 'express';
 import Controller from '../controller';
 import { ADMIN } from '../../types/permissions';
 import extractUser from '../../extract-user';
-import { handleErrors } from './util';
 import { IUnleashConfig } from '../../types/option';
 import { IUnleashServices } from '../../types/services';
 import { Logger } from '../../logger';
@@ -45,32 +42,28 @@ class StateController extends Controller {
         const userName = extractUser(req);
         const { drop, keep } = req.query;
         // TODO: Should override request type so file is a type on request
-        try {
-            let data;
+        let data;
+        // @ts-ignore
+        if (req.file) {
             // @ts-ignore
-            if (req.file) {
+            if (mime.getType(req.file.originalname) === 'text/yaml') {
                 // @ts-ignore
-                if (mime.getType(req.file.originalname) === 'text/yaml') {
-                    // @ts-ignore
-                    data = YAML.safeLoad(req.file.buffer);
-                } else {
-                    // @ts-ignore
-                    data = JSON.parse(req.file.buffer);
-                }
+                data = YAML.safeLoad(req.file.buffer);
             } else {
-                data = req.body;
+                // @ts-ignore
+                data = JSON.parse(req.file.buffer);
             }
-
-            await this.stateService.import({
-                data,
-                userName,
-                dropBeforeImport: paramToBool(drop, false),
-                keepExisting: paramToBool(keep, true),
-            });
-            res.sendStatus(202);
-        } catch (err) {
-            handleErrors(res, this.logger, err);
+        } else {
+            data = req.body;
         }
+
+        await this.stateService.import({
+            data,
+            userName,
+            dropBeforeImport: paramToBool(drop, false),
+            keepExisting: paramToBool(keep, true),
+        });
+        res.sendStatus(202);
     }
 
     async export(req: Request, res: Response): Promise<void> {
@@ -84,30 +77,26 @@ class StateController extends Controller {
         );
         const includeProjects = paramToBool(req.query.projects, true);
         const includeTags = paramToBool(req.query.tags, true);
+        const includeEnvironments = paramToBool(req.query.environments, true);
 
-        try {
-            const data = await this.stateService.export({
-                includeStrategies,
-                includeFeatureToggles,
-                includeProjects,
-                includeTags,
-            });
-            const timestamp = moment().format('YYYY-MM-DD_HH-mm-ss');
-            if (format === 'yaml') {
-                if (downloadFile) {
-                    res.attachment(`export-${timestamp}.yml`);
-                }
-                res.type('yaml').send(
-                    YAML.safeDump(data, { skipInvalid: true }),
-                );
-            } else {
-                if (downloadFile) {
-                    res.attachment(`export-${timestamp}.json`);
-                }
-                res.json(data);
+        const data = await this.stateService.export({
+            includeStrategies,
+            includeFeatureToggles,
+            includeProjects,
+            includeTags,
+            includeEnvironments,
+        });
+        const timestamp = moment().format('YYYY-MM-DD_HH-mm-ss');
+        if (format === 'yaml') {
+            if (downloadFile) {
+                res.attachment(`export-${timestamp}.yml`);
             }
-        } catch (err) {
-            handleErrors(res, this.logger, err);
+            res.type('yaml').send(YAML.safeDump(data, { skipInvalid: true }));
+        } else {
+            if (downloadFile) {
+                res.attachment(`export-${timestamp}.json`);
+            }
+            res.json(data);
         }
     }
 }

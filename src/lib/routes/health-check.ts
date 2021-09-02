@@ -1,5 +1,3 @@
-'use strict';
-
 import { Request, Response } from 'express';
 import { IUnleashConfig } from '../types/option';
 import { IUnleashServices } from '../types/services';
@@ -17,7 +15,7 @@ class HealthCheckController extends Controller {
         config: IUnleashConfig,
         { healthService }: Pick<IUnleashServices, 'healthService'>,
     ) {
-        super();
+        super(config);
         this.logger = config.getLogger('health-check.js');
         this.healthService = healthService;
         this.get('/', (req, res) => this.index(req, res));

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import Controller from '../controller';
-import { handleErrors } from './util';
+import { handleErrors } from '../util';
 import { UPDATE_APPLICATION } from '../../types/permissions';
 import { IUnleashConfig } from '../../types/option';
 import { IUnleashServices } from '../../types/services';
@@ -19,7 +19,7 @@ class MetricsController extends Controller {
         }: Pick<IUnleashServices, 'clientMetricsService'>,
     ) {
         super(config);
-        this.logger = config.getLogger('/admin-api/metrics.js');
+        this.logger = config.getLogger('/admin-api/metrics.ts');
 
         this.metrics = clientMetricsService;
 

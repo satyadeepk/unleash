@@ -1,34 +1,35 @@
 import User from '../types/user';
-import { AccessService, IUserWithRole, RoleName } from './access-service';
-import ProjectStore, { IProject } from '../db/project-store';
-import EventStore from '../db/event-store';
+import { AccessService } from './access-service';
 import NameExistsError from '../error/name-exists-error';
 import InvalidOperationError from '../error/invalid-operation-error';
-import { nameType } from '../routes/admin-api/util';
+import { nameType } from '../routes/util';
 import schema from './project-schema';
 import NotFoundError from '../error/notfound-error';
-import FeatureToggleStore from '../db/feature-toggle-store';
-import { IRole } from '../db/access-store';
 import {
+    FEATURE_PROJECT_CHANGE,
     PROJECT_CREATED,
     PROJECT_DELETED,
     PROJECT_UPDATED,
 } from '../types/events';
 import { IUnleashStores } from '../types/stores';
 import { IUnleashConfig } from '../types/option';
-import FeatureTypeStore from '../db/feature-type-store';
 import {
-    FeatureToggle,
-    IProjectHealthReport,
+    IProject,
     IProjectOverview,
+    IProjectWithCount,
+    IUserWithRole,
+    RoleName,
 } from '../types/model';
-import Timer = NodeJS.Timer;
-import {
-    MILLISECONDS_IN_DAY,
-    MILLISECONDS_IN_ONE_HOUR,
-} from '../util/constants';
-import EnvironmentStore from '../db/environment-store';
 import { GLOBAL_ENV } from '../types/environment';
+import { IEnvironmentStore } from '../types/stores/environment-store';
+import { IFeatureTypeStore } from '../types/stores/feature-type-store';
+import { IFeatureToggleStore } from '../types/stores/feature-toggle-store';
+import { IProjectStore } from '../types/stores/project-store';
+import { IRole } from '../types/stores/access-store';
+import { IEventStore } from '../types/stores/event-store';
+import FeatureToggleServiceV2 from './feature-toggle-service-v2';
+import { CREATE_FEATURE, UPDATE_FEATURE } from '../types/permissions';
+import NoAccessError from '../error/no-access-error';
 
 const getCreatedBy = (user: User) => user.email || user.username;
 
@@ -40,19 +41,21 @@ export interface UsersWithRoles {
 }
 
 export default class ProjectService {
-    private projectStore: ProjectStore;
+    private store: IProjectStore;
 
     private accessService: AccessService;
 
-    private eventStore: EventStore;
+    private eventStore: IEventStore;
 
-    private featureToggleStore: FeatureToggleStore;
+    private featureToggleStore: IFeatureToggleStore;
 
-    private featureTypeStore: FeatureTypeStore;
+    private featureTypeStore: IFeatureTypeStore;
 
-    private environmentStore: EnvironmentStore;
+    private environmentStore: IEnvironmentStore;
 
     private logger: any;
+
+    private featureToggleService: FeatureToggleServiceV2;
 
     constructor(
         {
@@ -71,29 +74,48 @@ export default class ProjectService {
         >,
         config: IUnleashConfig,
         accessService: AccessService,
+        featureToggleService: FeatureToggleServiceV2,
     ) {
-        this.projectStore = projectStore;
+        this.store = projectStore;
         this.environmentStore = environmentStore;
         this.accessService = accessService;
         this.eventStore = eventStore;
         this.featureToggleStore = featureToggleStore;
         this.featureTypeStore = featureTypeStore;
+        this.featureToggleService = featureToggleService;
         this.logger = config.getLogger('services/project-service.js');
     }
 
-    async getProjects(): Promise<IProject[]> {
-        return this.projectStore.getAll();
+    async getProjects(): Promise<IProjectWithCount[]> {
+        const projects = await this.store.getAll();
+        const projectsWithCount = await Promise.all(
+            projects.map(async (p) => {
+                let featureCount = 0;
+                let memberCount = 0;
+                try {
+                    featureCount =
+                        await this.featureToggleService.getFeatureCountForProject(
+                            p.id,
+                        );
+                    memberCount = await this.getMembers(p.id);
+                } catch (e) {
+                    this.logger.warn('Error fetching project counts', e);
+                }
+                return { ...p, featureCount, memberCount };
+            }),
+        );
+        return projectsWithCount;
     }
 
     async getProject(id: string): Promise<IProject> {
-        return this.projectStore.get(id);
+        return this.store.get(id);
     }
 
     async createProject(newProject: IProject, user: User): Promise<IProject> {
         const data = await schema.validateAsync(newProject);
         await this.validateUniqueId(data.id);
 
-        await this.projectStore.create(data);
+        await this.store.create(data);
 
         await this.environmentStore.connectProject(GLOBAL_ENV, data.id);
 
@@ -109,16 +131,55 @@ export default class ProjectService {
     }
 
     async updateProject(updatedProject: IProject, user: User): Promise<void> {
-        await this.projectStore.get(updatedProject.id);
+        await this.store.get(updatedProject.id);
         const project = await schema.validateAsync(updatedProject);
 
-        await this.projectStore.update(project);
+        await this.store.update(project);
 
         await this.eventStore.store({
             type: PROJECT_UPDATED,
             createdBy: getCreatedBy(user),
             data: project,
         });
+    }
+
+    async changeProject(
+        newProjectId: string,
+        featureName: string,
+        user: User,
+        currentProjectId: string,
+    ): Promise<any> {
+        const feature = await this.featureToggleStore.get(featureName);
+
+        if (feature.project !== currentProjectId) {
+            throw new NoAccessError(UPDATE_FEATURE);
+        }
+
+        const project = await this.getProject(newProjectId);
+
+        if (!project) {
+            throw new NotFoundError(`Project ${newProjectId} not found`);
+        }
+
+        const authorized = await this.accessService.hasPermission(
+            user,
+            CREATE_FEATURE,
+            newProjectId,
+        );
+
+        if (!authorized) {
+            throw new NoAccessError(CREATE_FEATURE);
+        }
+
+        const updatedFeature = await this.featureToggleService.updateField(
+            featureName,
+            'project',
+            newProjectId,
+            user.username,
+            FEATURE_PROJECT_CHANGE,
+        );
+
+        return updatedFeature;
     }
 
     async deleteProject(id: string, user: User): Promise<void> {
@@ -139,7 +200,7 @@ export default class ProjectService {
             );
         }
 
-        await this.projectStore.delete(id);
+        await this.store.delete(id);
 
         await this.eventStore.store({
             type: PROJECT_DELETED,
@@ -157,15 +218,10 @@ export default class ProjectService {
     }
 
     async validateUniqueId(id: string): Promise<void> {
-        try {
-            await this.projectStore.hasProject(id);
-        } catch (error) {
-            // No conflict, everything ok!
-            return;
+        const exists = await this.store.hasProject(id);
+        if (exists) {
+            throw new NameExistsError('A project with this id already exists.');
         }
-
-        // Intentional throw here!
-        throw new NameExistsError('A project with this id already exists.');
     }
 
     // RBAC methods
@@ -189,14 +245,14 @@ export default class ProjectService {
             projectId,
         );
 
-        const role = roles.find(r => r.id === roleId);
+        const role = roles.find((r) => r.id === roleId);
         if (!role) {
             throw new NotFoundError(
                 `Could not find roleId=${roleId} on project=${projectId}`,
             );
         }
 
-        const alreadyHasAccess = users.some(u => u.id === userId);
+        const alreadyHasAccess = users.some((u) => u.id === userId);
         if (alreadyHasAccess) {
             throw new Error(`User already have access to project=${projectId}`);
         }
@@ -210,7 +266,7 @@ export default class ProjectService {
         userId: number,
     ): Promise<void> {
         const roles = await this.accessService.getRolesForProject(projectId);
-        const role = roles.find(r => r.id === roleId);
+        const role = roles.find((r) => r.id === roleId);
         if (!role) {
             throw new NotFoundError(
                 `Couldn't find roleId=${roleId} on project=${projectId}`,
@@ -228,19 +284,19 @@ export default class ProjectService {
     }
 
     async getMembers(projectId: string): Promise<number> {
-        return this.projectStore.getMembers(projectId);
+        return this.store.getMembers(projectId);
     }
 
     async getProjectOverview(
         projectId: string,
         archived: boolean = false,
     ): Promise<IProjectOverview> {
-        const project = await this.projectStore.get(projectId);
-        const features = await this.projectStore.getProjectOverview(
+        const project = await this.store.get(projectId);
+        const features = await this.store.getProjectOverview(
             projectId,
             archived,
         );
-        const members = await this.projectStore.getMembers(projectId);
+        const members = await this.store.getMembers(projectId);
         return {
             name: project.name,
             description: project.description,

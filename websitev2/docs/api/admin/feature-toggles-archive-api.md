@@ -3,7 +3,7 @@ id: features-archive
 title: /api/admin/archive
 ---
 
-> In order to access the admin API endpoints you need to identify yourself. Unless you're using the `none` authentication method, you'll need to [create an ADMIN token](../../user_guide/api-token) and add an Authorization header using the token.
+> In order to access the admin API endpoints you need to identify yourself. Unless you're using the `none` authentication method, you'll need to [create an ADMIN token](/user_guide/api-token) and add an Authorization header using the token.
 
 ### Fetch archived toggles {#fetch-archived-toggles}
 
@@ -21,14 +21,7 @@ Used to fetch list of archived feature toggles
       "name": "Feature.A",
       "description": "lorem ipsum",
       "type": "release",
-      "enabled": false,
       "stale": false,
-      "strategies": [
-        {
-          "name": "default",
-          "parameters": {}
-        }
-      ],
       "variants": [],
       "tags": [],
       "strategy": "default",
@@ -40,14 +33,12 @@ Used to fetch list of archived feature toggles
 
 ### Revive feature toggle {#revive-feature-toggle}
 
-`POST http://unleash.host.com/api/admin/archive/revive`
+`POST http://unleash.host.com/api/admin/archive/revive/:featureName`
 
-**Body:**
+Response: **200 OK** - When feature toggle was successfully revived. 
 
-```json
-{
-  "name": "Feature.A"
-}
-```
+### Delete an archivied feature toggle
 
-Used to revive a feature toggle.
+`POST http://unleash.host.com/api/admin/archive/revive/:featureName`
+
+Will fully remove the feature toggle and associated configuration. Impossible to restore after this action. 

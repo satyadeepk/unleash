@@ -1,15 +1,11 @@
 import Joi from 'joi';
-import { customJoi } from '../routes/admin-api/util';
+import { customJoi } from '../routes/util';
 
 export const tagTypeSchema = Joi.object()
     .keys({
-        name: customJoi
-            .isUrlFriendly()
-            .min(2)
-            .max(50)
-            .required(),
+        name: customJoi.isUrlFriendly().min(2).max(50).required(),
         description: Joi.string().allow(''),
-        icon: Joi.string().allow(''),
+        icon: Joi.string().allow(null).allow(''),
     })
     .options({
         allowUnknown: false,
